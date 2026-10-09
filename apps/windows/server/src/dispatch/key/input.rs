@@ -1,6 +1,7 @@
 //! 按键怎么作用到 Engine / 高亮上。分流规则与 macOS 壳的 `handle_text` / `handle_command` 对齐。
 
 use qingjian_core::{QUESTION_PREFIX, shortcut};
+use qingjian_platform::SwitchTarget;
 use qingjian_platform::protocol::KeyEvent;
 
 use super::{Effect, codes, with_prefix};
@@ -23,11 +24,15 @@ impl Router {
         let Some(c) = event.character.filter(|c| !c.is_control()) else {
             return self.apply_function_key(event);
         };
-        // Caps 亮着无论中英模式都直接出大写英文；英文候选只在持久英文模式、Caps 灭、应用允许时给。
+        // Caps 亮着无论中英模式都直接出大写英文；越南语只由单击 Shift / Ctrl 等中英切换键进入。
         let caps = event.modifiers.caps;
-        let english = caps || event.modifiers.english_mode;
+        let vietnamese = event.modifiers.english_mode
+            && !caps
+            && matches!(self.config.switch_target, SwitchTarget::VietnameseTelex);
+        let english = caps || (event.modifiers.english_mode && !vietnamese);
         let english_candidates = event.modifiers.english_mode
             && !caps
+            && !vietnamese
             && self.config.english_candidates_in(self.focused_app());
         // 缓冲区为空时敲 `?` 先进问字模式（配置 `[shortcut] question_mark`，缺省关），中英文模式都行：
         // 后面跟字母就是在问字，跟别的键就还原成问号。
@@ -37,14 +42,15 @@ impl Router {
             return Effect::Changed(None);
         }
         // 双拼下 Shift+V / Shift+U 进表达式 / 问字模式（全拼下的 v / u 被音节占了）。
-        if !self.composing() && !english && self.engine.takes_mode_letter(c) {
+        if !self.composing() && !english && !vietnamese && self.engine.takes_mode_letter(c) {
             self.engine.set_english_mode(false);
+            self.engine.set_vietnamese_telex_mode(false);
             self.engine.push(c);
             return Effect::Changed(None);
         }
         let question = self.composing() && self.engine.question_mode();
-        // 英文模式下问字：Caps 让字母以大写送来，按小写收进问题。
-        let c = if question && english && c.is_ascii_uppercase() {
+        // 英文 / 越南语模式下问字：可能以大写送来，按小写收进问题。
+        let c = if question && (english || vietnamese) && c.is_ascii_uppercase() {
             c.to_ascii_lowercase()
         } else {
             c
@@ -57,12 +63,21 @@ impl Router {
             }
             return with_prefix(Some(mark), self.apply_key(event), c);
         }
-        // 英文组词中候选被关掉（Caps 亮 / 切应用）：敲过的字母先原样上屏。
-        let flushed = (self.composing() && !english_candidates && self.engine.english_mode())
-            .then(|| self.engine.take_raw());
+        // 模式切走时先收掉当前缓冲，避免把英语 / 越南语 / 中文混在同一段里。
+        let flushed = if self.composing() && !vietnamese && self.engine.vietnamese_telex_mode() {
+            Some(self.commit_highlighted())
+        } else if self.composing() && !english_candidates && self.engine.english_mode() {
+            Some(self.engine.take_raw())
+        } else {
+            None
+        };
         self.engine
             .set_english_mode(english_candidates && !question);
-        let effect = if english && !question {
+        self.engine
+            .set_vietnamese_telex_mode(vietnamese && !question);
+        let effect = if vietnamese && !question {
+            self.apply_vietnamese(c, event)
+        } else if english && !question {
             self.apply_english(c, english_candidates, event)
         } else {
             self.apply_chinese(c, event)
@@ -114,7 +129,9 @@ impl Router {
                 Effect::Changed(None)
             }
             codes::RETURN => {
-                if self.engine.is_zhuyin_mode() {
+                if self.engine.vietnamese_telex_mode() {
+                    Effect::Changed(Some(self.commit_highlighted()))
+                } else if self.engine.is_zhuyin_mode() {
                     if event.modifiers.shift {
                         Effect::Changed(Some(self.engine.take_raw()))
                     } else {
@@ -129,6 +146,9 @@ impl Router {
                 Effect::Navigated
             }
             codes::TAB if self.engine.english_mode() => {
+                Effect::Changed(Some(self.commit_highlighted()))
+            }
+            codes::TAB if self.engine.vietnamese_telex_mode() => {
                 Effect::Changed(Some(self.commit_highlighted()))
             }
             // 中文模式 Tab：有整句补全就接受，否则下一页。
@@ -263,6 +283,36 @@ impl Router {
         });
         let effect = self.apply_punctuation(c, event);
         with_prefix(committed, effect, c)
+    }
+
+    /// 越南语 Telex 模式。字母进 Telex 缓冲；Space / Enter / Tab 提交高亮候选并关闭候选窗口，
+    /// 数字选当前页第 N 个，标点先提交候选再输出标点。
+    fn apply_vietnamese(&mut self, c: char, event: &KeyEvent) -> Effect {
+        let composing = self.composing();
+        if composing
+            && let Some(digit) = codes::digit(event)
+            && let Some(index) = self.slot_index(digit)
+        {
+            return Effect::Changed(self.commit_index(index));
+        }
+        if c.is_ascii_alphabetic() || (composing && c == '\'') {
+            self.engine.push(c.to_ascii_lowercase());
+            return Effect::Changed(None);
+        }
+        if composing && let Some(step) = codes::page_key(event, self.config.page_keys) {
+            self.page(step);
+            return Effect::Navigated;
+        }
+        if composing {
+            if c == ' ' {
+                return Effect::Changed(Some(self.commit_highlighted()));
+            }
+            let committed = self.commit_highlighted();
+            self.engine.note_passthrough(c);
+            return with_prefix(Some(committed), Effect::Passthrough, c);
+        }
+        self.engine.note_passthrough(c);
+        Effect::Passthrough
     }
 
     /// 组句中的可打印键：数字选当前页第 N 个（没有这一格就进直输段），翻页键翻页，空格上屏高亮，其余进英文直输段；已在直输段里就一律追加。

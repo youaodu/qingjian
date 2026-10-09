@@ -1,7 +1,7 @@
 use qingjian_platform::protocol::KeyModifiers;
 use qingjian_platform::{
     AppsConfig, CandidateRenderer, Config, KeyCombo, LayoutMode, PreeditMode, Scheme, SwitchKeys,
-    ThemeMode,
+    SwitchTarget, ThemeMode,
 };
 
 use super::RenderSettings;
@@ -46,6 +46,9 @@ pub struct RouterConfig {
 
     /// 中英切换键（`[shortcut] switch_mode`）：由 Server 经协议下发给 DLL，由它认键。
     pub switch_mode: SwitchKeys,
+
+    /// 中英切换键离开中文后进入的目标（`[general] switch_target`）。Windows 上 Caps Lock 只管大小写。
+    pub switch_target: SwitchTarget,
 
     /// 中文模式下不在组句时的标点转全角（`[general] full_width_punctuation`）；状态条可切。
     pub full_width: bool,
@@ -117,6 +120,7 @@ impl From<&Config> for RouterConfig {
             english_candidates: config.general.english_candidates,
             english_mode: config.general.english_mode,
             switch_mode: config.shortcut.switch_mode,
+            switch_target: config.general.switch_target(),
             full_width: config.general.full_width_punctuation,
             english_full_width: config.general.english_full_width_punctuation,
             zhuyin: config.general.is_zhuyin(),

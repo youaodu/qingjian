@@ -72,6 +72,19 @@ powershell -ExecutionPolicy Bypass -File apps\windows\installer\build.ps1
 
 也可手动：`iscc /DAppVersion=0.1.0 apps\windows\installer\qingjian.iss`。
 
+## GitHub Actions 打包
+
+仓库里有 `.github/workflows/windows-package.yml`，可以在 GitHub 的 **Actions → Windows package → Run workflow** 手动触发，或推
+`windows-v<版本>` 标签触发。workflow 会：
+
+1. checkout 代码；
+2. 按 `tools/release/data.lock` 下载并校验产品数据；
+3. 安装 Inno Setup 7.1.0；
+4. 运行本目录的 `build.ps1`；
+5. 把 `target/installer/*-windows-x86_64-setup.exe` 上传为 artifact。
+
+CI 产物默认不签名、`QINGJIAN_UIACCESS=0`，和本地不带 `-Sign` 打包一致。
+
 ## 注意
 
 - **Inno 版本**：开发机与 CI 统一用 Inno Setup **7.1.0**（CI 从 jrsoftware/issrc 的 GitHub Release 钉死下载）。它自带简体中文翻译；

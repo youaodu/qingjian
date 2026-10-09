@@ -1,6 +1,6 @@
 //! 「通用」页：学习语言、每页候选数、输入方案、英文模式候选。
 
-use qingjian_platform::{MAX_PAGE_SIZE, Scheme, ShiftLetter, SwitchKey};
+use qingjian_platform::{MAX_PAGE_SIZE, Scheme, ShiftLetter, SwitchKey, SwitchTarget};
 use windows_reactor::*;
 
 use crate::panel::controls::{feedback, field, index_of, page};
@@ -28,6 +28,12 @@ pub(crate) const SCHEMES: [(&str, &str); Scheme::ALL.len()] = [
     (Scheme::ALL[7].label(), Scheme::ALL[7].key()),
     (Scheme::ALL[8].label(), Scheme::ALL[8].key()),
     (Scheme::ALL[9].label(), Scheme::ALL[9].key()),
+];
+
+/// Windows 中英切换键离开中文后的目标。
+pub(crate) const SWITCH_TARGETS: [(&str, &str); SwitchTarget::ALL.len()] = [
+    (SwitchTarget::ALL[0].label(), SwitchTarget::ALL[0].key()),
+    (SwitchTarget::ALL[1].label(), SwitchTarget::ALL[1].key()),
 ];
 
 pub(crate) fn string_combo(
@@ -80,6 +86,15 @@ pub(crate) fn view(settings: &Settings, context: &mut ViewContext<Settings>) -> 
                 &SCHEMES,
                 g.scheme().key(),
                 context.callback(Message::Scheme),
+            ),
+        ),
+        field(
+            "中英切换键切换到",
+            "Windows 上 Caps Lock 仍只控制大小写；单击 Shift / Ctrl / Ctrl+Alt+Space 离开中文时，可进入英语或越南语 Telex。学习语言选英语或越南语时会自动同步这里。",
+            string_combo(
+                &SWITCH_TARGETS,
+                g.switch_target().key(),
+                context.callback(Message::SwitchTarget),
             ),
         ),
         field(

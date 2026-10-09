@@ -99,6 +99,10 @@ impl QingjianInputController {
             if !h.engine.prediction_enabled() {
                 return None;
             }
+            if h.engine.vietnamese_telex_mode() {
+                h.cancel_prediction();
+                return None;
+            }
             if secure_input::enabled() {
                 tracing::debug!("Secure Input 中，不联想");
                 h.cancel_prediction();

@@ -9,7 +9,7 @@ use super::{
     AUTO_WORD_MAX_CHARS, AUTO_WORD_THRESHOLD, AUTO_WORD_THRESHOLD_SAME_BUFFER,
     EXPLICIT_TRANSITION_WEIGHT, Engine, choice_key, segment_longest_prefix,
 };
-use crate::candidate::{Candidate, CandidateKind, CandidateList, Language};
+use crate::candidate::{Candidate, CandidateKind, CandidateList, Language, Sense, Translation};
 use crate::correction::typo;
 use crate::{parser, sentence};
 use qingjian_dictionary::Dictionary;
@@ -43,6 +43,10 @@ impl Engine {
                     self.english_translator
                         .translate(&text.to_ascii_lowercase())
                 }),
+                CandidateKind::VietnameseWord | CandidateKind::VietnamesePhrase => {
+                    self.vietnamese_translation(text)
+                }
+                CandidateKind::VietnameseRaw => None,
                 _ => self.translator.translate(text).map(|mut translation| {
                     self.mark_fresh(&mut translation);
                     translation
@@ -55,6 +59,38 @@ impl Engine {
             hits,
             elapsed: start.elapsed(),
         }
+    }
+
+    fn vietnamese_translation(&self, text: &str) -> Option<Translation> {
+        self.vietnamese_translator
+            .translate(text)
+            .or_else(|| self.vietnamese_phrase_translation(text))
+    }
+
+    fn vietnamese_phrase_translation(&self, text: &str) -> Option<Translation> {
+        let parts: Vec<&str> = text.split_whitespace().collect();
+        if parts.len() < 2 {
+            return None;
+        }
+        let glosses: Vec<String> = parts
+            .into_iter()
+            .map(|part| {
+                self.vietnamese_translator
+                    .translate(part)
+                    .and_then(|translation| {
+                        translation.senses().first().map(|sense| sense.text.clone())
+                    })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(Translation::new(
+            Language::Chinese,
+            vec![Sense {
+                part_of_speech: None,
+                text: glosses.join(" "),
+                reading: None,
+                fresh: false,
+            }],
+        ))
     }
 
     /// 上屏：记入学习，从缓冲区消耗掉该候选对应的拼音，返回要提交给应用的文本。
@@ -122,6 +158,19 @@ impl Engine {
                 self.learner.record_choice(&input, &candidate.text);
                 (consumed, input)
             }
+            CandidateKind::VietnameseWord | CandidateKind::VietnamesePhrase => {
+                self.learner.record(candidate);
+                let consumed = self.composition.scope().len();
+                let input: String = self
+                    .composition
+                    .scope()
+                    .chars()
+                    .filter(|c| !c.is_whitespace())
+                    .collect();
+                self.learner.record_choice(&input, &candidate.text);
+                (consumed, input)
+            }
+            CandidateKind::VietnameseRaw => self.whole_scope(),
             // 英文词带出的 emoji 没有音节，和英文词一样对应整段作用域
             CandidateKind::Emoji if candidate.syllables.is_empty() => self.whole_scope(),
             CandidateKind::Sentence => {
@@ -243,6 +292,9 @@ impl Engine {
                 None => self.chain.reset(),
             },
             CandidateKind::English
+            | CandidateKind::VietnameseWord
+            | CandidateKind::VietnamesePhrase
+            | CandidateKind::VietnameseRaw
             | CandidateKind::Shortcut
             | CandidateKind::Custom(_)
             | CandidateKind::Emoji
@@ -262,6 +314,8 @@ impl Engine {
                 | CandidateKind::Code
                 | CandidateKind::Cloud
                 | CandidateKind::Sentence
+                | CandidateKind::VietnameseWord
+                | CandidateKind::VietnamesePhrase
         );
         let commit = if learned {
             LastCommit {

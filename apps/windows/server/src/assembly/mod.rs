@@ -6,7 +6,7 @@ mod spec;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use qingjian_core::{EmojiTable, Engine, Language};
+use qingjian_core::{EmojiTable, Engine, Language, VietnameseDictionary};
 use qingjian_dictionary::{Dictionary, WordList};
 use qingjian_learning::{FrequencyLearner, InputLog, UsageStats, VocabularyBook};
 use qingjian_platform::{Config, code_tables, extra_dictionaries};
@@ -72,6 +72,15 @@ pub fn assemble(spec: &AssemblySpec) -> Result<Engine, ServerError> {
         tracing::info!(words = words.len(), "英文词表已加载");
         engine = engine.with_english(words);
     }
+    if let Some((words, phrases)) = &spec.vietnamese {
+        match VietnameseDictionary::from_paths(words, phrases) {
+            Ok(dictionary) => engine = engine.with_vietnamese(dictionary),
+            Err(error) => tracing::warn!(%error, "越南语词表加载失败"),
+        }
+    }
+    if let Some(glossary) = load_vietnamese_translator(spec.vietnamese_glossary_tsv.as_deref()) {
+        engine = engine.with_vietnamese_translator(Box::new(glossary));
+    }
     if let Some(table) = load_emoji(&spec.emoji) {
         tracing::info!(words = table.len(), "emoji 表已加载");
         engine = engine.with_emoji(table);
@@ -88,6 +97,89 @@ pub fn assemble(spec: &AssemblySpec) -> Result<Engine, ServerError> {
         engine = engine.with_language_model(Box::new(model));
     }
     Ok(engine)
+}
+
+/// 越南语候选旁显示中文释义：把中→越学习释义 TSV 反向成越→中。
+fn load_vietnamese_translator(path: Option<&Path>) -> Option<Glossary> {
+    let path = path?;
+    let source = std::fs::read_to_string(path).ok()?;
+    let reversed = reverse_vietnamese_glossary(&source);
+    match Glossary::parse(Language::Chinese, &reversed) {
+        Ok(glossary) => {
+            tracing::info!(entries = glossary.len(), "越南语→中文释义表已加载");
+            Some(glossary)
+        }
+        Err(error) => {
+            tracing::warn!(%error, "越南语→中文释义表加载失败");
+            None
+        }
+    }
+}
+
+fn reverse_vietnamese_glossary(source: &str) -> String {
+    use std::collections::BTreeMap;
+
+    let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for line in source.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut fields = line.split('\t').map(str::trim);
+        let Some(chinese) = fields.next().filter(|word| !word.is_empty()) else {
+            continue;
+        };
+        for sense in fields.filter_map(clean_vietnamese_sense) {
+            let words = map.entry(sense).or_default();
+            if !words.iter().any(|word| word == chinese) {
+                words.push(chinese.to_owned());
+            }
+        }
+    }
+    let mut out = String::new();
+    out.push_str("# 由 glossary-vi.tsv 反向生成。越南语\t中文\n");
+    for (vietnamese, mut chinese_words) in map {
+        if !chinese_words.is_empty() {
+            chinese_words.sort_by(|a, b| {
+                chinese_gloss_priority(&vietnamese, a)
+                    .cmp(&chinese_gloss_priority(&vietnamese, b))
+                    .then_with(|| a.chars().count().cmp(&b.chars().count()))
+                    .then_with(|| a.cmp(b))
+            });
+            out.push_str(&vietnamese);
+            for word in chinese_words.into_iter().take(2) {
+                out.push('\t');
+                out.push_str(&word);
+            }
+            out.push('\n');
+        }
+    }
+    out
+}
+
+fn chinese_gloss_priority(vietnamese: &str, chinese: &str) -> u8 {
+    match (vietnamese, chinese) {
+        ("tôi", "我") => 0,
+        ("mình", "自己" | "我") => 0,
+        ("bạn", "你") => 0,
+        ("muốn", "想" | "要") => 0,
+        _ => 10,
+    }
+}
+
+fn clean_vietnamese_sense(text: &str) -> Option<String> {
+    let mut text = text.trim();
+    let lower = text.to_ascii_lowercase();
+    for prefix in [
+        "adj.", "adv.", "art.", "aux.", "clf.", "conj.", "int.", "n.", "num.", "part.", "prep.",
+        "pron.", "v.", "phr.",
+    ] {
+        if lower.starts_with(prefix) {
+            text = text[prefix.len()..].trim();
+            break;
+        }
+    }
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!text.is_empty()).then_some(text)
 }
 
 /// 用户导入词库目录 `dicts/`，不存在则创建；建不了当没有。

@@ -23,7 +23,7 @@ use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
 use objc2_foundation::{NSProcessInfo, NSRect, NSString};
 use qingjian_core::{
     Candidate, CandidateKind, Cell, CloudWord, EmojiTable, Engine, FuzzyRules, Language, ModeKeys,
-    NoGlossFiller, NoInputLogger, NoPredictor, NoTranslator, Prediction,
+    NoGlossFiller, NoInputLogger, NoPredictor, NoTranslator, Prediction, VietnameseDictionary,
 };
 use qingjian_dictionary::{Dictionary, WordList};
 use qingjian_learning::{FrequencyLearner, InputLog, UsageStats, VocabularyBook};
@@ -32,7 +32,8 @@ use qingjian_platform::extra_dictionaries;
 use qingjian_platform::{
     AppsConfig, CandidateRenderer, DEFAULT_ENGLISH_CANDIDATES_OFF, DictionariesConfig,
     GeneralConfig, KeyCombo, LEARNING_LANGUAGE_OFF, LayoutMode, LocalModelConfig, LogLevel,
-    Modifiers, PAGE_KEY_OPTIONS, PreeditMode, Scheme, ShortcutConfig, ThemeMode, UpdateChannel,
+    Modifiers, PAGE_KEY_OPTIONS, PreeditMode, Scheme, ShortcutConfig, SwitchTarget, ThemeMode,
+    UpdateChannel,
 };
 use qingjian_predict::{
     CloudGlossFiller, CloudPredictor, ConnectionTest, PredictConfig, PredictError,
@@ -125,6 +126,9 @@ pub struct Host {
     /// 翻译选中文字的快捷键（配置 `[shortcut] translate_selection`）。
     pub translate_keys: KeyCombo,
 
+    /// 循环切换学习语言的快捷键（配置 `[shortcut] cycle_learning_language`）。
+    pub cycle_learning_language_keys: KeyCombo,
+
     /// 进行中的「翻译选中文字」；有它时候选窗口显示的是译文（或「翻译中…」），按键先归它处理。
     pub translation: Option<TranslationJob>,
 
@@ -142,6 +146,9 @@ pub struct Host {
 
     /// 英文模式是否给英文候选（配置 `[general] english_candidates`）。
     pub english_candidates: bool,
+
+    /// Caps Lock 离开中文后进入的目标输入（配置 `[general] switch_target`）。
+    pub switch_target: SwitchTarget,
 
     /// 上次从系统读到的文本替换（激活输入法时重读），`[general] system_text_replacements` 开着时并进自定义短语。
     text_replacements: Vec<TextReplacement>,

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::modifiers::Modifiers;
 
-/// 修饰键 + 一个字母键的组合，配置里写成 `control+option+t`。
+/// 修饰键 + 一个字母/数字/空格键的组合，配置里写成 `control+option+t` 或 `control+space`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct KeyCombo {
@@ -27,18 +27,34 @@ impl KeyCombo {
         key: 't',
     };
 
+    pub const CYCLE_LEARNING_LANGUAGE_DEFAULT: Self = Self {
+        modifiers: Modifiers {
+            option: true,
+            shift: false,
+            control: true,
+            command: false,
+        },
+        key: 'z',
+    };
+
     /// 配置文件里的写法。
     pub fn key_string(&self) -> String {
-        format!("{}+{}", self.modifiers.key(), self.key)
+        let key = if self.key == ' ' {
+            "space".to_owned()
+        } else {
+            self.key.to_string()
+        };
+        format!("{}+{key}", self.modifiers.key())
     }
 
     /// 给人看的写法：`⌃⌥T`。
     pub fn label(&self) -> String {
-        format!(
-            "{}{}",
-            self.modifiers.label(),
-            self.key.to_ascii_uppercase()
-        )
+        let key = if self.key == ' ' {
+            "Space".to_owned()
+        } else {
+            self.key.to_ascii_uppercase().to_string()
+        };
+        format!("{}{key}", self.modifiers.label())
     }
 }
 
@@ -56,11 +72,17 @@ impl FromStr for KeyCombo {
             .trim()
             .rsplit_once('+')
             .ok_or_else(|| format!("expected modifiers+key, got {text:?}"))?;
-        let mut chars = key.trim().chars();
-        let (Some(key), None) = (chars.next(), chars.next()) else {
-            return Err(format!("key must be a single character: {key:?}"));
+        let key_text = key.trim();
+        let key = if key_text.eq_ignore_ascii_case("space") || key_text == " " {
+            ' '
+        } else {
+            let mut chars = key_text.chars();
+            let (Some(key), None) = (chars.next(), chars.next()) else {
+                return Err(format!("key must be a single character: {key:?}"));
+            };
+            key
         };
-        if !key.is_ascii_alphanumeric() {
+        if key != ' ' && !key.is_ascii_alphanumeric() {
             return Err(format!("key must be a letter or digit: {key:?}"));
         }
         Ok(Self {
@@ -103,6 +125,10 @@ mod tests {
         assert!("t".parse::<KeyCombo>().is_err());
         assert!("option+tt".parse::<KeyCombo>().is_err());
         assert!("option+-".parse::<KeyCombo>().is_err());
+        let space: KeyCombo = "control+space".parse().unwrap();
+        assert_eq!(space.key, ' ');
+        assert_eq!(space.key_string(), "control+space");
+        assert_eq!(space.label(), "⌃Space");
         for option in ["control+shift+t", "control+option+e", "shift+command+9"] {
             assert_eq!(option.parse::<KeyCombo>().unwrap().key_string(), option);
         }

@@ -148,10 +148,14 @@ fn main() {
     let glossary = language.zip(glossary_path);
     let bundled_dicts_dir = Some(root.join("data/generated/dicts")).filter(|dir| dir.is_dir());
     let bundled_codes_dir = Some(root.join("data/generated/codes")).filter(|dir| dir.is_dir());
+    let vietnamese =
+        asset(&root, "vietnamese/words.tsv").zip(asset(&root, "vietnamese/phrases.tsv"));
     let spec = AssemblySpec {
         glossary: glossary.clone(),
         english_glossary: glossary_file(&root, Language::Chinese),
         english: generated(&root, "english.tsv"),
+        vietnamese,
+        vietnamese_glossary_tsv: asset(&root, "glossary/glossary-vi.tsv"),
         emoji: ["emoji-zh.tsv", "emoji-en.tsv"]
             .into_iter()
             .filter_map(|name| asset(&root, &format!("emoji/{name}")))

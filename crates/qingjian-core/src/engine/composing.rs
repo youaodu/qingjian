@@ -199,6 +199,13 @@ impl Engine {
             return true;
         }
         self.note_edit();
+        if self.vietnamese_telex {
+            let len = crate::vietnamese::backspace_unit_len(
+                self.composition.text(),
+                self.composition.cursor(),
+            );
+            return self.composition.delete_before_cursor(len);
+        }
         self.composition.backspace()
     }
 

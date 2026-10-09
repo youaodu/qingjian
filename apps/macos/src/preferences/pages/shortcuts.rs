@@ -39,6 +39,9 @@ pub struct ShortcutsPage {
 
     /// 翻译选中文字的组合键。
     translate_selection: Retained<KeyRecorder>,
+
+    /// 循环切换学习语言的组合键。
+    cycle_learning_language: Retained<KeyRecorder>,
 }
 
 impl ShortcutsPage {
@@ -144,6 +147,19 @@ impl ShortcutsPage {
             mtm,
             "在应用里选中一段文字再按这个键，译文（学习语言）出现在候选窗口：回车替换选中的文字，Esc 保留原文。需要开着云服务。",
         );
+        let cycle_learning_language = row_recorder(
+            layout,
+            mtm,
+            "切换学习语言",
+            Setting::CycleLearningLanguageKeys,
+            false,
+            target,
+        );
+        note(
+            layout,
+            mtm,
+            "在已安装的释义语言与「不显示译文」之间循环切换。默认 ⌃⌥Z。",
+        );
         layout.space(GROUP_GAP);
         note_full(
             layout,
@@ -170,6 +186,7 @@ impl ShortcutsPage {
             translation_second,
             delete_candidate,
             translate_selection,
+            cycle_learning_language,
         }
     }
 
@@ -202,5 +219,10 @@ impl ShortcutsPage {
         let translate = config.shortcut.translate_selection;
         self.translate_selection
             .show(&translate.key_string(), &translate.label());
+        let cycle_learning_language = config.shortcut.cycle_learning_language;
+        self.cycle_learning_language.show(
+            &cycle_learning_language.key_string(),
+            &cycle_learning_language.label(),
+        );
     }
 }

@@ -66,6 +66,9 @@ impl Report {
             | InputSource::Cloud
             | InputSource::CloudSentence
             | InputSource::Raw
+            | InputSource::VietnameseWord
+            | InputSource::VietnamesePhrase
+            | InputSource::VietnameseRaw
             | InputSource::Translation => None,
         }
     }

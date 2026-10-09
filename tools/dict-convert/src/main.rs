@@ -31,6 +31,7 @@ mod oov_filter;
 mod pack;
 mod phrases;
 mod stroke;
+mod vietnamese;
 mod wubi;
 
 use clap::Parser;
@@ -94,6 +95,9 @@ fn run() -> Result<(), ConvertError> {
             frequency.as_deref(),
             &args.out_dir.join("english.tsv"),
         ),
+        Command::Vietnamese { input } => {
+            vietnamese::convert(&input, &args.out_dir.join("vietnamese"))
+        }
         Command::Emoji { inputs, language } => emoji::convert(
             &inputs,
             &args.out_dir.join(format!("emoji-{language}.tsv")),

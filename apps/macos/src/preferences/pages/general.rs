@@ -4,7 +4,7 @@ use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2_app_kit::{NSButton, NSPopUpButton};
 use qingjian_core::Language;
-use qingjian_platform::{Config, MAX_PAGE_SIZE, Scheme};
+use qingjian_platform::{Config, MAX_PAGE_SIZE, Scheme, SwitchTarget};
 
 use crate::preferences::controls::{
     checkbox, language_label, note, row_checkbox, row_popup, select, set_checked,
@@ -22,6 +22,9 @@ pub struct GeneralPage {
 
     /// 拼音方案（按 `Scheme::ALL` 的顺序）。
     scheme: Retained<NSPopUpButton>,
+
+    /// Caps Lock 切换目标（按 `SwitchTarget::ALL` 的顺序）。
+    switch_target: Retained<NSPopUpButton>,
 
     /// 双拼模式下输入框保留原始输入按键。
     shuangpin_raw_preedit: Retained<NSButton>,
@@ -99,6 +102,23 @@ impl GeneralPage {
             layout,
             mtm,
             "全拼、五套双拼、大千注音，或关（只用下面的五笔）。双拼下 v、u、i 是音节键，表达式与问字模式改用 Shift+V、Shift+U 进（微软、搜狗方案的 ; 键是 ing）；注音下 v、u、i 也是按键，只能用 ? 开头进。",
+        );
+        let switch_target_titles: Vec<String> = SwitchTarget::ALL
+            .iter()
+            .map(|target| target.label().to_owned())
+            .collect();
+        let switch_target = row_popup(
+            layout,
+            mtm,
+            "Caps Lock 切换到",
+            &switch_target_titles,
+            Setting::SwitchTarget,
+            target,
+        );
+        note(
+            layout,
+            mtm,
+            "默认切到英语；改成越南语 Telex 后，Caps Lock 亮起时输入越南语，熄灭后回到中文输入。",
         );
         let shuangpin_raw_preedit = checkbox(
             mtm,
@@ -186,6 +206,7 @@ impl GeneralPage {
             learning_language,
             page_size,
             scheme,
+            switch_target,
             wubi,
             shuangpin_raw_preedit,
             traditional,
@@ -221,6 +242,15 @@ impl GeneralPage {
                 Scheme::ALL
                     .iter()
                     .position(|s| *s == general.scheme())
+                    .unwrap_or(0),
+            ),
+        );
+        select(
+            &self.switch_target,
+            Some(
+                SwitchTarget::ALL
+                    .iter()
+                    .position(|target| *target == general.switch_target())
                     .unwrap_or(0),
             ),
         );

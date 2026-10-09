@@ -89,6 +89,16 @@ impl Engine {
         self.forget_span_cache();
     }
 
+    /// 设置越南语 Telex 模式。开启后中文拼音、双拼、注音和形码查询都让位给越南语查询器。
+    pub fn set_vietnamese_telex_mode(&mut self, on: bool) {
+        self.vietnamese_telex = on;
+        *self.correction_cache.borrow_mut() = None;
+    }
+
+    pub fn vietnamese_telex_mode(&self) -> bool {
+        self.vietnamese_telex
+    }
+
     /// 設置是否啟用繁體輸出模式。
     pub fn set_traditional_mode(&mut self, on: bool) {
         self.traditional = on;
@@ -372,6 +382,15 @@ impl Engine {
         self
     }
 
+    pub fn with_vietnamese(mut self, dictionary: VietnameseDictionary) -> Self {
+        self.vietnamese = Some(dictionary);
+        self
+    }
+
+    pub fn set_vietnamese(&mut self, dictionary: Option<VietnameseDictionary>) {
+        self.vietnamese = dictionary;
+    }
+
     pub fn with_translator(mut self, translator: Box<dyn Translator>) -> Self {
         self.translator = translator;
         self
@@ -381,6 +400,12 @@ impl Engine {
     /// 接英文候选用的释义表（英→中）。
     pub fn with_english_translator(mut self, translator: Box<dyn Translator>) -> Self {
         self.english_translator = translator;
+        self
+    }
+
+    /// 接越南语候选用的释义表（越→中）。
+    pub fn with_vietnamese_translator(mut self, translator: Box<dyn Translator>) -> Self {
+        self.vietnamese_translator = translator;
         self
     }
 

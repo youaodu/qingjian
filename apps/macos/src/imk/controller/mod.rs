@@ -221,6 +221,16 @@ impl QingjianInputController {
             .charactersIgnoringModifiers()
             .map(|c| c.to_string().to_ascii_lowercase());
         let combo = host::with(|h| h.translate_keys).unwrap_or_default();
+        let cycle = host::with(|h| h.cycle_learning_language_keys).unwrap_or_default();
+        if pressed == cycle.modifiers
+            && typed.as_deref().and_then(|t| t.chars().next()) == Some(cycle.key)
+        {
+            let anchor = client.caret_rect();
+            if let Some(text) = host::with(|h| h.cycle_learning_language()).flatten() {
+                host::with(|h| h.show_notice(&text, anchor));
+            }
+            return true;
+        }
         if pressed == combo.modifiers
             && typed.as_deref().and_then(|t| t.chars().next()) == Some(combo.key)
             && !host::with(|h| !h.engine.composition().is_empty()).unwrap_or(false)

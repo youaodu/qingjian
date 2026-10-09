@@ -19,6 +19,12 @@ pub struct AssemblySpec {
     /// 英文词表。
     pub english: Option<PathBuf>,
 
+    /// 越南语词表与短语表（Telex 输入）。
+    pub vietnamese: Option<(PathBuf, PathBuf)>,
+
+    /// 越南语学习释义 TSV，用来反向生成越南语→中文候选注解。
+    pub vietnamese_glossary_tsv: Option<PathBuf>,
+
     /// emoji 表（多张合成一张）。
     pub emoji: Vec<PathBuf>,
 
@@ -54,6 +60,8 @@ impl AssemblySpec {
             glossary: None,
             english_glossary: None,
             english: None,
+            vietnamese: None,
+            vietnamese_glossary_tsv: None,
             emoji: Vec::new(),
             language_model: None,
             bundled_dicts_dir: None,

@@ -31,11 +31,13 @@ impl Host {
         self.translation_keys = config.shortcut.translation_keys();
         self.delete_keys = config.shortcut.delete_keys();
         self.translate_keys = config.shortcut.translate_selection;
+        self.cycle_learning_language_keys = config.shortcut.cycle_learning_language;
         self.page_size = config.general.page_size();
         self.cloud_slots = config.predict.slots;
         self.page_keys = config.general.page_keys();
         self.preedit_mode = config.general.preedit;
         self.english_candidates = config.general.english_candidates;
+        self.switch_target = config.general.switch_target();
         self.apps = config.apps.clone();
         self.window.set_theme(config.general.theme);
         self.window.set_layout(config.general.layout);

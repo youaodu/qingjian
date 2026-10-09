@@ -18,6 +18,15 @@ pub enum InputSource {
     /// 英文候选。
     English,
 
+    /// 越南语词候选。
+    VietnameseWord,
+
+    /// 越南语短语或多词组合候选。
+    VietnamesePhrase,
+
+    /// 越南语模式下原始 ASCII 兜底。
+    VietnameseRaw,
+
     /// 快捷候选（日期 / 算式 / 码点）。
     Shortcut,
 
@@ -46,6 +55,9 @@ impl From<CandidateKind> for InputSource {
             // 模型直接生成的也是整句，回放时与词图出的整句同一类看
             CandidateKind::Sentence | CandidateKind::Generated => Self::Sentence,
             CandidateKind::English => Self::English,
+            CandidateKind::VietnameseWord => Self::VietnameseWord,
+            CandidateKind::VietnamesePhrase => Self::VietnamesePhrase,
+            CandidateKind::VietnameseRaw => Self::VietnameseRaw,
             CandidateKind::Shortcut => Self::Shortcut,
             CandidateKind::Custom(_) => Self::Custom,
             CandidateKind::Emoji => Self::Emoji,

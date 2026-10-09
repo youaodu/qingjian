@@ -7,11 +7,25 @@ impl QingjianInputController {
         tracing::debug!(%text, "inputText");
         self.note_application(&client);
         let mut composing = host::with(|h| !h.engine.composition().is_empty()).unwrap_or(false);
-        let english = modifiers::caps_lock_on();
+        let caps_lock = modifiers::caps_lock_on();
+        let switch_target = host::with(|h| h.switch_target).unwrap_or_default();
+        let vietnamese_target = caps_lock
+            && matches!(
+                switch_target,
+                qingjian_platform::SwitchTarget::VietnameseTelex
+            );
+        let english = caps_lock && !vietnamese_target;
         // 终端、编辑器这类应用（`[apps] english_candidates_off`）里英文模式是纯直通
         let english_candidates = english
             && host::with(|h| h.english_candidates_in(client.bundle_identifier().as_deref()))
                 .unwrap_or(false);
+        if composing
+            && !vietnamese_target
+            && host::with(|h| h.engine.vietnamese_telex_mode()).unwrap_or(false)
+        {
+            self.commit_highlighted(client);
+            composing = false;
+        }
         // 英文模式组词中 Caps Lock 灭了（或开关关了）：敲的字母先原样上屏，别把它们当拼音
         if composing
             && !english_candidates
@@ -52,12 +66,18 @@ impl QingjianInputController {
         }
         let question = composing && host::with(|h| h.engine.question_mode()).unwrap_or(false);
         // 英文模式下问字：Caps Lock 让字母以大写送来，按小写收进问题
-        let c = if question && english && c.is_ascii_uppercase() {
+        let c = if c.is_ascii_uppercase()
+            && ((question && caps_lock) || (vietnamese_target && !modifiers::shift_down()))
+        {
             c.to_ascii_lowercase()
         } else {
             c
         };
         host::with(|h| h.engine.set_english_mode(english_candidates && !question));
+        host::with(|h| {
+            h.engine
+                .set_vietnamese_telex_mode(vietnamese_target && !question)
+        });
         let (page_previous, page_next) =
             host::with(|h| h.page_keys).unwrap_or(qingjian_platform::DEFAULT_PAGE_KEYS);
         // Caps Lock 亮着 = 英文模式：不组句、不转标点，字母默认小写、按住 Shift 才大写
@@ -116,6 +136,7 @@ impl QingjianInputController {
         }
         // 表达式模式（v 开头）：数字与运算符进缓冲区，不当选词 / 翻页键
         let expression = composing && host::with(|h| h.engine.expression_mode()).unwrap_or(false);
+        let vietnamese = host::with(|h| h.engine.vietnamese_telex_mode()).unwrap_or(false);
         // 英文直输段（缓冲区里已有 `-` 这类字符）：可见字符一律追加，空格 / 回车整段原样上屏
         let raw = composing && host::with(|h| h.engine.raw_mode()).unwrap_or(false);
         // 组句中敲 `-`：进入英文直输段（`no-way`）；配成翻页键（`[general] page_keys` 选 `-=`）时才翻页
@@ -162,6 +183,11 @@ impl QingjianInputController {
         // 按住 Shift 打的大写字母：缺省是临时打英文，先把拼音原样上屏，再把字母交给应用；
         // `[general] shift_letter = "compose"` 时进缓冲区（Core 按小写匹配、原样上屏时还原大写）
         if c.is_ascii_uppercase() {
+            if vietnamese {
+                host::with(|h| h.engine.push(c));
+                self.refresh(client);
+                return true;
+            }
             if host::with(|h| h.engine.shift_letter_compose()).unwrap_or(false) {
                 host::with(|h| h.engine.push(c));
                 self.refresh(client);
@@ -194,6 +220,10 @@ impl QingjianInputController {
                 // 其他字符：把当前高亮候选上屏，再按非组句状态处理这个字符
                 _ => {
                     self.commit_highlighted(client);
+                    if vietnamese {
+                        host::with(|h| h.engine.note_passthrough(c));
+                        return false;
+                    }
                 }
             }
         }

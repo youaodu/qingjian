@@ -11,6 +11,7 @@ mod modes;
 mod phonetic;
 mod result;
 mod snapshot;
+mod vietnamese;
 
 pub(crate) use english_tail::EnglishTail;
 pub use result::Query;
@@ -95,6 +96,9 @@ impl Engine {
         let rest = self.marked_rest(self.composition.rest());
         if self.english_mode {
             return Ok(self.query_english(keys, rest, start));
+        }
+        if self.vietnamese_telex {
+            return Ok(self.query_vietnamese(keys, start));
         }
         if self.modes().is_expression(keys, self.zhuyin) {
             return Ok(self.query_expression(keys, rest, start));

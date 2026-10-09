@@ -134,6 +134,9 @@ pub enum Setting {
     /// `[shortcut] translate_selection`，快捷键录制按钮（修饰键 + 字母）。
     TranslateSelectionKeys,
 
+    /// `[shortcut] cycle_learning_language`，快捷键录制按钮（修饰键 + 字母/空格）。
+    CycleLearningLanguageKeys,
+
     /// 「恢复默认快捷键」按钮：翻页键、模式键、三组译词 / 翻译快捷键全部回缺省。
     ResetShortcuts,
 
@@ -148,6 +151,9 @@ pub enum Setting {
 
     /// `[general] scheme`，弹出菜单：全拼 + 五套双拼 + 大千注音 + 关。
     Scheme,
+
+    /// `[general] switch_target`，弹出菜单：Caps Lock 切到英语 / 越南语 Telex。
+    SwitchTarget,
 
     /// `[general] shuangpin_raw_preedit`，勾选框：双拼模式下输入框保留原始输入按键。
     ShuangpinRawPreedit,
@@ -222,9 +228,11 @@ impl Setting {
             Self::TranslationKeys => 15,
             Self::TranslationSecondKeys => 16,
             Self::TranslateSelectionKeys => 17,
+            Self::CycleLearningLanguageKeys => 58,
             Self::ResetShortcuts => 18,
             Self::ImportDictionary => 19,
             Self::Scheme => 20,
+            Self::SwitchTarget => 57,
             Self::Traditional => 47,
             Self::ShuangpinRawPreedit => 52,
             Self::VerboseLog => 21,
@@ -288,9 +296,11 @@ impl Setting {
             15 => Self::TranslationKeys,
             16 => Self::TranslationSecondKeys,
             17 => Self::TranslateSelectionKeys,
+            58 => Self::CycleLearningLanguageKeys,
             18 => Self::ResetShortcuts,
             19 => Self::ImportDictionary,
             20 => Self::Scheme,
+            57 => Self::SwitchTarget,
             49 => Self::Wubi,
             47 => Self::Traditional,
             52 => Self::ShuangpinRawPreedit,
@@ -368,9 +378,11 @@ mod tests {
             Setting::TranslationKeys,
             Setting::TranslationSecondKeys,
             Setting::TranslateSelectionKeys,
+            Setting::CycleLearningLanguageKeys,
             Setting::ResetShortcuts,
             Setting::ImportDictionary,
             Setting::Scheme,
+            Setting::SwitchTarget,
             Setting::Wubi,
             Setting::ShuangpinRawPreedit,
             Setting::Traditional,

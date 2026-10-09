@@ -3,9 +3,39 @@
 use super::diagnostics::{copy_to_pasteboard, open_with_system};
 use super::*;
 use crate::preferences::DEFAULT_FONT_LABEL;
-use qingjian_platform::ShiftLetter;
+use qingjian_platform::{ShiftLetter, SwitchTarget};
 
 impl Host {
+    pub fn cycle_learning_language(&mut self) -> Option<String> {
+        let mut choices: Vec<Option<Language>> = self.languages.iter().copied().map(Some).collect();
+        choices.push(None);
+        if choices.is_empty() {
+            return None;
+        }
+        let current = self.learning_language;
+        let index = choices
+            .iter()
+            .position(|choice| *choice == current)
+            .unwrap_or(choices.len().saturating_sub(1));
+        let next = choices[(index + 1) % choices.len()];
+        let value = next.map_or(LEARNING_LANGUAGE_OFF, |language| language.code());
+        if !self
+            .settings
+            .set_value("general", "learning_language", value)
+        {
+            return None;
+        }
+        if let Some(target) = next.and_then(switch_target_for_learning_language) {
+            self.settings
+                .set_value("general", "switch_target", target.key());
+        }
+        self.apply_config(false);
+        Some(match next {
+            Some(language) => format!("学习语言：{}", learning_language_label(language)),
+            None => "学习语言：不显示译文".to_owned(),
+        })
+    }
+
     /// 写短语前读取文件；外部规则有变化时同步列表并请用户重新确认。
     fn phrases_are_current(&mut self) -> bool {
         let Some(path) = self.settings.path() else {
@@ -168,12 +198,14 @@ impl Host {
             }
             (Setting::LearningLanguage, SettingValue::Index(index)) => {
                 // 菜单最后一项是「不显示译文」
-                let code = self
-                    .languages
-                    .get(index)
-                    .map_or(LEARNING_LANGUAGE_OFF, |language| language.code());
+                let language = self.languages.get(index).copied();
+                let code = language.map_or(LEARNING_LANGUAGE_OFF, |language| language.code());
                 self.settings
                     .set_value("general", "learning_language", code);
+                if let Some(target) = language.and_then(switch_target_for_learning_language) {
+                    self.settings
+                        .set_value("general", "switch_target", target.key());
+                }
             }
             (Setting::PageSize, SettingValue::Index(index)) => {
                 self.settings
@@ -278,6 +310,18 @@ impl Host {
                     Err(error) => tracing::warn!(%error, "快捷键不合法，未改"),
                 }
             }
+            (Setting::CycleLearningLanguageKeys, SettingValue::Text(text)) => {
+                match text.parse::<KeyCombo>() {
+                    Ok(combo) => {
+                        self.settings.set_value(
+                            "shortcut",
+                            "cycle_learning_language",
+                            combo.key_string(),
+                        );
+                    }
+                    Err(error) => tracing::warn!(%error, "快捷键不合法，未改"),
+                }
+            }
             (Setting::ResetShortcuts, _) => {
                 let defaults = ShortcutConfig::default();
                 self.settings
@@ -302,6 +346,11 @@ impl Host {
                     "shortcut",
                     "translate_selection",
                     defaults.translate_selection.key_string(),
+                );
+                self.settings.set_value(
+                    "shortcut",
+                    "cycle_learning_language",
+                    defaults.cycle_learning_language.key_string(),
                 );
                 self.settings.set_value(
                     "shortcut",
@@ -384,6 +433,12 @@ impl Host {
                     .get(index)
                     .map_or(Scheme::Pinyin.key(), |scheme| scheme.key());
                 self.settings.set_value("general", "scheme", key);
+            }
+            (Setting::SwitchTarget, SettingValue::Index(index)) => {
+                let key = SwitchTarget::ALL
+                    .get(index)
+                    .map_or(SwitchTarget::English.key(), |target| target.key());
+                self.settings.set_value("general", "switch_target", key);
             }
             (Setting::ShuangpinRawPreedit, SettingValue::Bool(on)) => {
                 self.settings
@@ -504,5 +559,23 @@ impl Host {
             (setting, value) => tracing::warn!(?setting, ?value, "设置项与控件值不匹配"),
         }
         self.apply_config(false);
+    }
+}
+
+fn learning_language_label(language: Language) -> &'static str {
+    match language {
+        Language::English => "英语",
+        Language::Japanese => "日语",
+        Language::Spanish => "西班牙语",
+        Language::Vietnamese => "越南语",
+        Language::Chinese => "中文",
+    }
+}
+
+fn switch_target_for_learning_language(language: Language) -> Option<SwitchTarget> {
+    match language {
+        Language::English => Some(SwitchTarget::English),
+        Language::Vietnamese => Some(SwitchTarget::VietnameseTelex),
+        _ => None,
     }
 }

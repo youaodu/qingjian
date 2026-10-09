@@ -19,11 +19,42 @@ pub const DEFAULT_PAGE_KEYS: (char, char) = ('[', ']');
 /// `learning_language` 写这个值表示不显示译文。
 pub const LEARNING_LANGUAGE_OFF: &str = "off";
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SwitchTarget {
+    /// Caps Lock / 中英切换进入英文输入。
+    #[default]
+    English,
+
+    /// Caps Lock / 中英切换进入越南语 Telex 输入。
+    VietnameseTelex,
+}
+
+impl SwitchTarget {
+    pub const ALL: [Self; 2] = [Self::English, Self::VietnameseTelex];
+
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::English => "en",
+            Self::VietnameseTelex => "vi",
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::English => "英语",
+            Self::VietnameseTelex => "越南语 Telex",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct GeneralConfig {
     /// 学习语言（ISO 639-1，`en` / `ja` / `es` / `vi`；`off` 不显示译文）：候选旁显示哪种语言的译文。要有对应的释义表文件才生效。
     pub learning_language: String,
+
+    /// 中英切换键离开中文后进入的目标。macOS 是 Caps Lock；Windows 是配置的中英切换键。
+    pub switch_target: String,
 
     /// 每页候选数，1–9。
     pub page_size: usize,
@@ -120,6 +151,7 @@ impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
             learning_language: "en".to_owned(),
+            switch_target: SwitchTarget::English.key().to_owned(),
             page_size: MAX_PAGE_SIZE,
             page_keys: PAGE_KEY_OPTIONS[0].to_owned(),
             theme: ThemeMode::default(),
@@ -154,12 +186,16 @@ impl Default for GeneralConfig {
 impl GeneralConfig {
     /// 拼音侧方案。`scheme` 没写时用旧键（`shuangpin` / `zhuyin`）推，都没有就是全拼。
     pub fn scheme(&self) -> Scheme {
-        let key = self.scheme.trim();
+        let key = self.scheme.trim().to_ascii_lowercase();
+        if matches!(key.as_str(), "vietnamese-telex" | "telex-vi" | "vi-telex") {
+            tracing::info!("vietnamese-telex 已从 scheme 迁到 switch_target，中文输入方案按全拼");
+            return Scheme::Pinyin;
+        }
         if !key.is_empty() {
-            return match key.parse() {
+            return match key.as_str().parse() {
                 Ok(scheme) => scheme,
                 Err(_) => {
-                    tracing::warn!(key, "不认识的拼音方案，按全拼");
+                    tracing::warn!(key = key.as_str(), "不认识的拼音方案，按全拼");
                     Scheme::Pinyin
                 }
             };
@@ -196,6 +232,26 @@ impl GeneralConfig {
         self.learning_language
             .trim()
             .eq_ignore_ascii_case(LEARNING_LANGUAGE_OFF)
+    }
+
+    /// Caps Lock / 中英切换进入的目标输入。兼容第一版误写到 `scheme` 里的越南语值。
+    pub fn switch_target(&self) -> SwitchTarget {
+        if matches!(
+            self.scheme.trim().to_ascii_lowercase().as_str(),
+            "vietnamese-telex" | "telex-vi" | "vi-telex"
+        ) {
+            return SwitchTarget::VietnameseTelex;
+        }
+        match self.switch_target.trim().to_ascii_lowercase().as_str() {
+            "vi" | "vietnamese" | "vietnamese-telex" | "telex-vi" | "vi-telex" => {
+                SwitchTarget::VietnameseTelex
+            }
+            "" | "en" | "english" => SwitchTarget::English,
+            other => {
+                tracing::warn!(key = other, "不认识的切换目标，按英语");
+                SwitchTarget::English
+            }
+        }
     }
 
     /// 当前方案是双拼时是哪一套；不是双拼时为 `None`。
@@ -329,6 +385,28 @@ mod tests {
         assert!(!general.scheme().is_on());
         general.scheme = "flypy".to_owned();
         assert_eq!(general.scheme(), Scheme::Pinyin);
+    }
+
+    #[test]
+    fn switch_target_defaults_to_english_and_accepts_vietnamese() {
+        let mut general = GeneralConfig::default();
+        assert_eq!(general.switch_target(), SwitchTarget::English);
+        general.switch_target = "vi".to_owned();
+        assert_eq!(general.switch_target(), SwitchTarget::VietnameseTelex);
+        general.switch_target = "vietnamese-telex".to_owned();
+        assert_eq!(general.switch_target(), SwitchTarget::VietnameseTelex);
+        general.switch_target = "unknown".to_owned();
+        assert_eq!(general.switch_target(), SwitchTarget::English);
+    }
+
+    #[test]
+    fn first_vietnamese_scheme_attempt_is_treated_as_switch_target() {
+        let general = GeneralConfig {
+            scheme: "vietnamese-telex".to_owned(),
+            ..GeneralConfig::default()
+        };
+        assert_eq!(general.scheme(), Scheme::Pinyin);
+        assert_eq!(general.switch_target(), SwitchTarget::VietnameseTelex);
     }
 
     #[test]

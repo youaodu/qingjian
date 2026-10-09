@@ -75,6 +75,9 @@ cp assets/levels/levels-*.tsv "$APP/Contents/Resources/"
 # 五笔码表（输入方案选五笔时用，见 assets/wubi/README.md；极点 86 码表，Apache-2.0）
 mkdir -p "$APP/Contents/Resources/wubi"
 cp assets/wubi/wubi86.tsv "$APP/Contents/Resources/wubi/"
+# 越南语 Telex 词句表。
+mkdir -p "$APP/Contents/Resources/vietnamese"
+cp assets/vietnamese/*.tsv "$APP/Contents/Resources/vietnamese/"
 if [[ -f data/generated/dict.tsv || -f data/generated/dict.qj ]]; then
   # 词库与语言模型打成 .qj（mmap 直接用），TSV 比 .qj 新时重新打包；只有 .qj（CI 从数据包解出来的）就直接用
   if [[ -f data/generated/dict.tsv && ( ! -f data/generated/dict.qj || data/generated/dict.tsv -nt data/generated/dict.qj ) ]]; then
@@ -135,6 +138,8 @@ if [[ -f data/generated/dict.tsv || -f data/generated/dict.qj ]]; then
         --name "青简释义表（${lang}）" --license "$license" --attribution "$attribution"
     fi
     cp "$out" "$APP/Contents/Resources/"
+    # 越南语输入候选需要从 vi 释义表反向构建「越南语 → 中文」提示。
+    [[ "$lang" == vi ]] && cp "$src" "$APP/Contents/Resources/"
   done
   for f in assets/lexicon/english.tsv data/generated/english.tsv; do
     [[ -f "$f" ]] && cp "$f" "$APP/Contents/Resources/"

@@ -90,6 +90,14 @@ pub fn init(mtm: MainThreadMarker, info: &BundleInfo) -> Result<(), HostError> {
     if let Some(words) = english {
         engine = engine.with_english(words);
     }
+    match load_vietnamese() {
+        Some(dictionary) => engine = engine.with_vietnamese(dictionary),
+        None => tracing::warn!("越南语词表未加载，vietnamese-telex 模式只保留转写与原文候选"),
+    }
+    match load_vietnamese_translator() {
+        Some(glossary) => engine = engine.with_vietnamese_translator(Box::new(glossary)),
+        None => tracing::warn!("越南语反向释义表未加载，越南语候选不显示中文意思"),
+    }
     if let Some(table) = load_emoji_tables(&["emoji-zh.tsv", "emoji-en.tsv"]) {
         tracing::info!(words = table.len(), "emoji 表已加载");
         engine = engine.with_emoji(table);
@@ -146,12 +154,14 @@ pub fn init(mtm: MainThreadMarker, info: &BundleInfo) -> Result<(), HostError> {
             status: None,
             input_log_enabled: None,
             translate_keys: KeyCombo::TRANSLATE_DEFAULT,
+            cycle_learning_language_keys: KeyCombo::CYCLE_LEARNING_LANGUAGE_DEFAULT,
             translation: None,
             notice: None,
             preedit_mode: PreeditMode::default(),
             layout: LayoutMode::default(),
             horizontal_grid: false,
             english_candidates: true,
+            switch_target: SwitchTarget::English,
             text_replacements: Vec::new(),
             apps: AppsConfig::default(),
             monitor,
@@ -265,6 +275,100 @@ pub(super) fn glossary_path(language: Language) -> Result<PathBuf, HostError> {
         .or_else(|_| paths::resource(&format!("glossary-{}.tsv", language.code())))
 }
 
+pub(super) fn load_vietnamese() -> Option<VietnameseDictionary> {
+    let words = paths::resource("vietnamese/words.tsv").ok()?;
+    let phrases = paths::resource("vietnamese/phrases.tsv").ok()?;
+    match VietnameseDictionary::from_paths(&words, &phrases) {
+        Ok(dictionary) => Some(dictionary),
+        Err(error) => {
+            tracing::warn!(%error, "越南语词表加载失败");
+            None
+        }
+    }
+}
+
+pub(super) fn load_vietnamese_translator() -> Option<Glossary> {
+    let path = paths::resource("glossary-vi.tsv").ok()?;
+    let source = std::fs::read_to_string(&path).ok()?;
+    let reversed = reverse_vietnamese_glossary(&source);
+    match Glossary::parse(Language::Chinese, &reversed) {
+        Ok(glossary) => {
+            tracing::info!(entries = glossary.len(), "越南语→中文释义表已加载");
+            Some(glossary)
+        }
+        Err(error) => {
+            tracing::warn!(%error, path = %path.display(), "越南语→中文释义表加载失败");
+            None
+        }
+    }
+}
+
+fn reverse_vietnamese_glossary(source: &str) -> String {
+    use std::collections::BTreeMap;
+
+    let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for line in source.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut fields = line.split('\t').map(str::trim);
+        let Some(chinese) = fields.next().filter(|word| !word.is_empty()) else {
+            continue;
+        };
+        for sense in fields.filter_map(clean_vietnamese_sense) {
+            let words = map.entry(sense).or_default();
+            if !words.iter().any(|word| word == chinese) {
+                words.push(chinese.to_owned());
+            }
+        }
+    }
+    let mut out = String::new();
+    out.push_str("# 由 glossary-vi.tsv 反向生成。越南语\t中文\n");
+    for (vietnamese, mut chinese_words) in map {
+        if !chinese_words.is_empty() {
+            chinese_words.sort_by(|a, b| {
+                chinese_gloss_priority(&vietnamese, a)
+                    .cmp(&chinese_gloss_priority(&vietnamese, b))
+                    .then_with(|| a.chars().count().cmp(&b.chars().count()))
+                    .then_with(|| a.cmp(b))
+            });
+            out.push_str(&vietnamese);
+            for word in chinese_words.into_iter().take(2) {
+                out.push('\t');
+                out.push_str(&word);
+            }
+            out.push('\n');
+        }
+    }
+    out
+}
+
+fn chinese_gloss_priority(vietnamese: &str, chinese: &str) -> u8 {
+    match (vietnamese, chinese) {
+        ("tôi", "我") => 0,
+        ("mình", "自己" | "我") => 0,
+        ("bạn", "你") => 0,
+        ("muốn", "想" | "要") => 0,
+        _ => 10,
+    }
+}
+
+fn clean_vietnamese_sense(text: &str) -> Option<String> {
+    let mut text = text.trim();
+    let lower = text.to_ascii_lowercase();
+    for prefix in [
+        "adj.", "adv.", "art.", "aux.", "clf.", "conj.", "int.", "n.", "num.", "part.", "prep.",
+        "pron.", "v.", "phr.",
+    ] {
+        if lower.starts_with(prefix) {
+            text = text[prefix.len()..].trim();
+            break;
+        }
+    }
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!text.is_empty()).then_some(text)
+}
+
 /// 随包释义表叠上用户目录的个人释义表（`user-glossary-<语言>.tsv`，释义兜底写入、可手改）。
 pub(super) fn load_glossary(language: Language) -> Result<LayeredTranslator, HostError> {
     let bundled = Glossary::from_path(language, glossary_path(language)?)?;
@@ -283,4 +387,26 @@ pub(super) fn load_glossary(language: Language) -> Result<LayeredTranslator, Hos
         );
     }
     Ok(LayeredTranslator::new(bundled, personal))
+}
+
+#[cfg(test)]
+mod tests {
+    use qingjian_core::Translator;
+
+    use super::*;
+
+    #[test]
+    fn reverses_vietnamese_glossary_for_candidate_annotations() {
+        let reversed = reverse_vietnamese_glossary(
+            "# h\n倪\tpron. tôi\n我\tpron. tôi\tpron. mình\n同意\tv. đồng ý\tv. tán thành\n吾\tpron. tôi\n",
+        );
+        let glossary = Glossary::parse(Language::Chinese, &reversed).unwrap();
+        let senses = glossary.translate("tôi").unwrap().senses().to_vec();
+        assert_eq!(senses[0].text, "我");
+        assert_ne!(senses[1].text, "我");
+        assert_eq!(
+            glossary.translate("đồng ý").unwrap().senses()[0].text,
+            "同意"
+        );
+    }
 }

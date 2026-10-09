@@ -10,7 +10,7 @@ pub use qingjian_platform::protocol::{
     ServerMessage, SessionId,
 };
 pub use qingjian_platform::{
-    AppsConfig, DEFAULT_ENGLISH_CANDIDATES_OFF_WINDOWS, PreeditMode, Scheme,
+    AppsConfig, DEFAULT_ENGLISH_CANDIDATES_OFF_WINDOWS, PreeditMode, Scheme, SwitchTarget,
 };
 pub use qingjian_windows_server::dispatch::{
     CandidateSink, RenderSettings, StatusEvent, StatusSink, StatusView,
@@ -86,6 +86,31 @@ pub fn router_in(config: RouterConfig, app: Option<String>) -> Router {
     let mut router = Router::new(engine, config);
     // 协议版本与 Server 一致：开会话时把按键行为设置回一次（DLL 不读配置文件，靠它拿切换键）。
     open_session(&mut router, SESSION, app);
+    router
+}
+
+pub fn router_vietnamese() -> Router {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let dict = root.join("assets/sample/dict.tsv");
+    let glossary = root.join("assets/sample/glossary-en.tsv");
+    let mut engine = assembly::assemble(&AssemblySpec {
+        glossary: Some((Language::English, glossary)),
+        english: Some(root.join("assets/sample/english.tsv")),
+        vietnamese: Some((
+            root.join("assets/vietnamese/words.tsv"),
+            root.join("assets/vietnamese/phrases.tsv"),
+        )),
+        vietnamese_glossary_tsv: Some(root.join("assets/glossary/glossary-vi.tsv")),
+        ..AssemblySpec::new(dict)
+    })
+    .expect("assemble engine with vietnamese data");
+    let config = RouterConfig {
+        switch_target: SwitchTarget::VietnameseTelex,
+        ..RouterConfig::default()
+    };
+    engine.set_shuangpin(config.scheme.shuangpin());
+    let mut router = Router::new(engine, config);
+    open_session(&mut router, SESSION, None);
     router
 }
 

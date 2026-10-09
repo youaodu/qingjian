@@ -12,6 +12,15 @@ pub enum CandidateKind {
     /// 英文词表里的词（中英混输），上屏时吃掉整段输入。
     English,
 
+    /// 越南语 Telex 词候选。
+    VietnameseWord,
+
+    /// 越南语 Telex 短语或多词组合候选。
+    VietnamesePhrase,
+
+    /// 越南语 Telex 模式下的原始 ASCII 兜底。
+    VietnameseRaw,
+
     /// 云联想给出的词：带全拼音节，上屏后记成用户词。
     Cloud,
 

@@ -83,6 +83,13 @@ pub enum Command {
         frequency: Option<PathBuf>,
     },
 
+    /// 越南语释义表（glossary-vi.tsv）→ vietnamese/words.tsv + vietnamese/phrases.tsv
+    Vietnamese {
+        /// 越南语释义表，格式为 `中文词\t[词性. ]越南语释义...`
+        #[arg(default_value = "assets/glossary/glossary-vi.tsv")]
+        input: PathBuf,
+    },
+
     /// Unicode CLDR emoji annotations（`annotations/<语言>/annotations.json`、`annotationsDerived/…`）→ emoji-<语言>.tsv：`词\temoji …`
     Emoji {
         /// 输入的 JSON 文件

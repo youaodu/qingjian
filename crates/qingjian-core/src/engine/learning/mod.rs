@@ -81,7 +81,8 @@ impl Engine {
     pub(super) fn meter_commit(&mut self, text: &str, source: InputSource, english_word: bool) {
         let mut usage = Usage::of_text(text);
         usage.words = match source {
-            InputSource::Word | InputSource::Cloud => 1,
+            InputSource::Word | InputSource::Cloud | InputSource::VietnameseWord => 1,
+            InputSource::VietnamesePhrase => text.split_whitespace().count() as u64,
             InputSource::Sentence | InputSource::CloudSentence => {
                 sentence::segment_text(text, &*self.language_model).map_or(usage.hanzi, |clauses| {
                     clauses.iter().map(|words| words.len() as u64).sum()
@@ -92,6 +93,7 @@ impl Engine {
             | InputSource::Shortcut
             | InputSource::Emoji
             | InputSource::Raw
+            | InputSource::VietnameseRaw
             | InputSource::Translation => 0,
         };
         if source == InputSource::Raw && !english_word {
@@ -166,6 +168,9 @@ impl Engine {
                 learning: false,
             },
             CandidateKind::Sentence
+            | CandidateKind::VietnameseWord
+            | CandidateKind::VietnamesePhrase
+            | CandidateKind::VietnameseRaw
             | CandidateKind::Shortcut
             | CandidateKind::Custom(_)
             | CandidateKind::Emoji

@@ -2,7 +2,7 @@
 
 use qingjian_platform::{
     CandidateRenderer, Config, DEFAULT_ENGLISH_CANDIDATES_OFF_WINDOWS, LayoutMode, LogLevel,
-    PreeditMode, ShiftLetter, ThemeMode, UpdateChannel,
+    PreeditMode, ShiftLetter, SwitchTarget, ThemeMode, UpdateChannel,
 };
 use windows_reactor::*;
 
@@ -51,7 +51,14 @@ impl Component for Settings {
 
             // 通用页
             Message::LearningLanguage(Some(i)) if i < general::LANGUAGES.len() => {
-                self.save("general", "learning_language", general::LANGUAGES[i].1);
+                let language = general::LANGUAGES[i].1;
+                self.save("general", "learning_language", language);
+                if let Some(target) = switch_target_for_learning_language(language) {
+                    self.save("general", "switch_target", target.key());
+                }
+            }
+            Message::SwitchTarget(Some(i)) if i < general::SWITCH_TARGETS.len() => {
+                self.save("general", "switch_target", general::SWITCH_TARGETS[i].1);
             }
             Message::PageSize(Some(value)) => {
                 let size = (value.round() as i64).clamp(1, 9);
@@ -357,5 +364,13 @@ impl Component for Settings {
                 SlotView::collection(NavigationViewSlot::MenuItems, items),
                 SlotView::new(NavigationViewSlot::Content, self.page_content(context)),
             ])
+    }
+}
+
+fn switch_target_for_learning_language(language: &str) -> Option<SwitchTarget> {
+    match language {
+        "en" => Some(SwitchTarget::English),
+        "vi" => Some(SwitchTarget::VietnameseTelex),
+        _ => None,
     }
 }

@@ -42,7 +42,11 @@ impl QingjianInputController {
             // 方向键等其他键还原后交给应用
             return selector == sel!(insertNewline:);
         } else if selector == sel!(insertNewline:) {
-            self.commit_raw(client);
+            if host::with(|h| h.engine.vietnamese_telex_mode()).unwrap_or(false) {
+                self.commit_highlighted(client);
+            } else {
+                self.commit_raw(client);
+            }
         } else if selector == sel!(cancelOperation:) || selector == sel!(complete:) {
             // TextEdit 等应用把 Esc 绑成 complete:（自动补全），也当作取消。矩阵展开着时第一下 Esc 只收回单行
             if host::with(|h| h.session.collapse()).unwrap_or(false) {

@@ -13,6 +13,9 @@ const RECORDING_TITLE: &str = "按下新的快捷键…";
 /// Esc 的键码：取消录制。
 const ESCAPE_KEY: u16 = 53;
 
+/// Space 的键码。
+const SPACE_KEY: u16 = 49;
+
 /// 录制器的状态。
 pub struct Ivars {
     /// 只记修饰键（配数字键上屏译词那两项）：按住修饰键再按任意键，键本身不算。
@@ -81,7 +84,8 @@ define_class!(
                 event
                     .charactersIgnoringModifiers()
                     .and_then(|c| c.to_string().chars().next())
-                    .filter(|c| c.is_ascii_alphanumeric())
+                    .or_else(|| (event.keyCode() == SPACE_KEY).then_some(' '))
+                    .filter(|c| *c == ' ' || c.is_ascii_alphanumeric())
                     .map(|c| {
                         let combo = KeyCombo {
                             modifiers,

@@ -76,6 +76,7 @@ use crate::sentence::{
 };
 use crate::shortcut;
 use crate::shuangpin::Scheme;
+use crate::vietnamese::VietnameseDictionary;
 
 use commit::CommitChain;
 
@@ -97,6 +98,9 @@ pub struct Engine {
     /// 与中文候选查学习语言的表分开，仍是「一个候选只显示一种辅助语言」。
     english_translator: Box<dyn Translator>,
 
+    /// 越南语候选的释义（越→中），缺省为 [`NoTranslator`]。
+    vietnamese_translator: Box<dyn Translator>,
+
     /// 用户词频，缺省为 [`NoLearner`]；私密输入期间只读不写（[`learning::MutedLearner`]）。
     learner: learning::MutedLearner,
 
@@ -108,6 +112,12 @@ pub struct Engine {
 
     /// 英文模式（壳里 Caps Lock 亮着）：缓冲区里的字母不当拼音，候选来自英文词表的补全与纠正。
     english_mode: bool,
+
+    /// 越南语 Telex 模式：缓冲区按越南语词句查询，不走中文拼音模型。
+    vietnamese_telex: bool,
+
+    /// 越南语词表与短语表。
+    vietnamese: Option<VietnameseDictionary>,
 
     /// 全角标点与引号配对状态。
     punctuation: Punctuation,
@@ -388,11 +398,14 @@ impl Engine {
             extra_dictionaries: Vec::new(),
             translator: Box::new(NoTranslator),
             english_translator: Box::new(NoTranslator),
+            vietnamese_translator: Box::new(NoTranslator),
             modes: ModeKeys::default(),
             learner: learning::MutedLearner::new(Box::new(NoLearner)),
             composition: Composition::default(),
             english: None,
             english_mode: false,
+            vietnamese_telex: false,
+            vietnamese: None,
             punctuation: Punctuation::default(),
             full_width_punctuation: true,
             custom_phrases: Vec::new(),
