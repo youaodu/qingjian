@@ -39,10 +39,17 @@ impl Engine {
             candidate.translation = match candidate.kind {
                 CandidateKind::Custom(_) => None,
                 // 英文候选按敲的大小写显示（Company / COMPANY），释义表键是小写
-                CandidateKind::English => self.english_translator.translate(text).or_else(|| {
-                    self.english_translator
-                        .translate(&text.to_ascii_lowercase())
-                }),
+                CandidateKind::English => self
+                    .english_translator
+                    .translate(text)
+                    .or_else(|| {
+                        self.english_translator
+                            .translate(&text.to_ascii_lowercase())
+                    })
+                    .map(|mut translation| {
+                        self.add_chinese_readings(&mut translation);
+                        translation
+                    }),
                 CandidateKind::VietnameseWord | CandidateKind::VietnamesePhrase => {
                     self.vietnamese_translation(text)
                 }
@@ -64,6 +71,10 @@ impl Engine {
     fn vietnamese_translation(&self, text: &str) -> Option<Translation> {
         self.vietnamese_translator
             .translate(text)
+            .map(|mut translation| {
+                self.add_chinese_readings(&mut translation);
+                translation
+            })
             .or_else(|| self.vietnamese_phrase_translation(text))
     }
 
@@ -82,15 +93,43 @@ impl Engine {
                     })
             })
             .collect::<Option<Vec<_>>>()?;
+        let text = glosses.join(" ");
+        let reading = self.chinese_reading(&text);
         Some(Translation::new(
             Language::Chinese,
             vec![Sense {
                 part_of_speech: None,
-                text: glosses.join(" "),
-                reading: None,
+                text,
+                reading,
                 fresh: false,
             }],
         ))
+    }
+
+    fn add_chinese_readings(&self, translation: &mut Translation) {
+        if translation.language != Language::Chinese {
+            return;
+        }
+        for sense in translation.senses_mut() {
+            if sense.reading.is_none() {
+                sense.reading = self.chinese_reading(&sense.text);
+            }
+        }
+    }
+
+    fn chinese_reading(&self, text: &str) -> Option<String> {
+        if let Some(reading) = self.chinese_readings.get(text) {
+            return Some(reading.clone());
+        }
+        let parts: Vec<&str> = text.split_whitespace().collect();
+        if parts.len() <= 1 {
+            return None;
+        }
+        parts
+            .into_iter()
+            .map(|part| self.chinese_readings.get(part).cloned())
+            .collect::<Option<Vec<_>>>()
+            .map(|readings| readings.join(" "))
     }
 
     /// 上屏：记入学习，从缓冲区消耗掉该候选对应的拼音，返回要提交给应用的文本。

@@ -84,6 +84,9 @@ pub struct Engine {
     /// 静态词库。
     dictionary: Dictionary,
 
+    /// 中文词到拼音的反查表，用于给外语候选的中文释义显示读音。
+    chinese_readings: HashMap<String, String>,
+
     /// 译文提供方，缺省为 [`NoTranslator`]。
     translator: Box<dyn Translator>,
 
@@ -393,8 +396,10 @@ pub const RESCORE_CONTEXT_CHARS: usize = 64;
 
 impl Engine {
     pub fn new(dictionary: Dictionary) -> Self {
+        let chinese_readings = chinese_readings_from_dictionaries([&dictionary]);
         Self {
             dictionary,
+            chinese_readings,
             extra_dictionaries: Vec::new(),
             translator: Box::new(NoTranslator),
             english_translator: Box::new(NoTranslator),
@@ -465,6 +470,29 @@ impl Engine {
             traditional_map: std::cell::RefCell::new(HashMap::new()),
         }
     }
+}
+
+fn chinese_readings_from_dictionaries<'a>(
+    dictionaries: impl IntoIterator<Item = &'a Dictionary>,
+) -> HashMap<String, String> {
+    let mut readings: HashMap<String, (u32, String)> = HashMap::new();
+    for dictionary in dictionaries {
+        for entry in dictionary.entries() {
+            readings
+                .entry(entry.text.to_owned())
+                .and_modify(|(frequency, pinyin)| {
+                    if entry.frequency > *frequency {
+                        *frequency = entry.frequency;
+                        *pinyin = entry.pinyin.to_owned();
+                    }
+                })
+                .or_insert_with(|| (entry.frequency, entry.pinyin.to_owned()));
+        }
+    }
+    readings
+        .into_iter()
+        .map(|(word, (_, pinyin))| (word, pinyin))
+        .collect()
 }
 
 /// 缓冲区是否是英文直输段：含拼音键与 `'` 以外的字符（`no-way`、`a.b`），且不是表达式 / 问字模式。
