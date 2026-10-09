@@ -46,16 +46,21 @@ jobs:
         shell: bash
         run: tools/release/data-fetch.sh
 
-      - name: Install Inno Setup 7
+      - name: Install Inno Setup
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          winget install --id JRSoftware.InnoSetup -e --version 7.1.0 --silent --accept-package-agreements --accept-source-agreements
+          winget install --id JRSoftware.InnoSetup -e --silent --accept-package-agreements --accept-source-agreements -h --disable-interactivity 2>$null
+          if ($LASTEXITCODE -ne 0) { Write-Host 'winget 安装/升级 Inno Setup 未成功，继续查找 runner 上已有版本' }
           $iscc = @(
             "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
-            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe"
-          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $iscc) { throw '找不到 Inno Setup 7 的 ISCC.exe' }
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          if (-not $iscc) { throw '找不到 Inno Setup 的 ISCC.exe' }
+          Write-Host "使用 $iscc"
           "QINGJIAN_ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build installer
