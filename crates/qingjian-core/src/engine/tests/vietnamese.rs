@@ -101,5 +101,5 @@ fn chinese_annotations_on_vietnamese_candidates_carry_pinyin() {
         .first()
         .unwrap();
     assert_eq!(sense.text, "我");
-    assert_eq!(sense.reading.as_deref(), Some("wo"));
+    assert_eq!(sense.reading.as_deref(), Some("wǒ"));
 }

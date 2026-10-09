@@ -56,6 +56,8 @@ plist = "1.7"
 foldhash = "0.2.0"
 # 繁体输出（OpenCC s2tw，内置词表）；只要简→繁那半
 ferrous-opencc = { version = "0.4.0", default-features = false, features = ["s2t-conversion"] }
+# 中文释义显示拼音（带声调）。
+pinyin = "0.11.0"
 # .qj 数据容器：mmap 打开、结构体数组零拷贝读取
 memmap2 = "0.9"
 zerocopy = { version = "0.8", features = ["derive"] }

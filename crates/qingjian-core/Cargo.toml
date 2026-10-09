@@ -13,6 +13,7 @@ workspace = true
 ferrous-opencc.workspace = true
 foldhash.workspace = true
 jiff.workspace = true
+pinyin.workspace = true
 qingjian-dictionary.workspace = true
 serde.workspace = true
 thiserror.workspace = true

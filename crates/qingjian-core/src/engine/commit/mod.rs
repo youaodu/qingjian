@@ -12,6 +12,7 @@ use super::{
 use crate::candidate::{Candidate, CandidateKind, CandidateList, Language, Sense, Translation};
 use crate::correction::typo;
 use crate::{parser, sentence};
+use pinyin::ToPinyin;
 use qingjian_dictionary::Dictionary;
 use std::time::Instant;
 
@@ -22,6 +23,21 @@ mod transition;
 pub(super) use chain::CommitChain;
 pub use last::LastCommit;
 pub use transition::Transition;
+
+fn pinyin_with_tone(text: &str) -> Option<String> {
+    let mut words = Vec::new();
+    for word in text.split_whitespace() {
+        let mut syllables = Vec::new();
+        for c in word.chars() {
+            let pinyin = c.to_pinyin()?;
+            syllables.push(pinyin.with_tone().to_owned());
+        }
+        if !syllables.is_empty() {
+            words.push(syllables.join(" "));
+        }
+    }
+    (!words.is_empty()).then(|| words.join(" "))
+}
 
 impl Engine {
     /// 给候选补上译文。与 [`Self::query`] 分开调用，平台层可以先画候选再补画译文。
@@ -118,6 +134,9 @@ impl Engine {
     }
 
     fn chinese_reading(&self, text: &str) -> Option<String> {
+        if let Some(reading) = pinyin_with_tone(text) {
+            return Some(reading);
+        }
         if let Some(reading) = self.chinese_readings.get(text) {
             return Some(reading.clone());
         }
