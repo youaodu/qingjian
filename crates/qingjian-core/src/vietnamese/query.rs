@@ -47,7 +47,11 @@ pub(crate) fn query(
     let mut seen = HashSet::new();
 
     for phrase in dictionary.phrases() {
-        if phrase.telex == key || phrase.compact_telex == compact_key {
+        if phrase.telex == key
+            || phrase.compact_telex == compact_key
+            || phrase.toneless_telex == key
+            || phrase.compact_toneless_telex == compact_key
+        {
             push_unique(
                 &mut out,
                 &mut seen,
@@ -205,7 +209,7 @@ mod tests {
 
     fn dict() -> VietnameseDictionary {
         VietnameseDictionary::from_sources(
-            "tôi\ttooi\t9000\ntối\ttoois\t8900\ntốt\ttoots\t8800\nyêu\tyeeu\t8500\nmuốn\tmuoons\t8400\nlà\tlaf\t8300\nla\tla\t9000\ntiếng\ttieengs\t8200\nViệt\tvieetj\t8000\n",
+            "tôi\ttooi\t9000\ntối\ttoois\t8900\ntốt\ttoots\t8800\nyêu\tyeeu\t8500\nmuốn\tmuoons\t8400\nlà\tlaf\t9300\nla\tla\t9000\ngì\tgif\t8700\ntiếng\ttieengs\t8200\nViệt\tvieetj\t8000\n",
             "tiếng Việt\ttieengs vieetj\t9500\ntôi yêu\ttooi yeeu\t8800\n",
         )
     }
@@ -248,6 +252,12 @@ mod tests {
     fn common_function_words_beat_literal_unaccented_matches() {
         let candidates = dict().query("tooi la", |_, _| 0);
         assert_eq!(candidates.first().map(|c| c.text.as_str()), Some("tôi là"));
+    }
+
+    #[test]
+    fn omitted_tone_keys_still_match_accented_words() {
+        let candidates = dict().query("la gi", |_, _| 0);
+        assert_eq!(candidates.first().map(|c| c.text.as_str()), Some("là gì"));
     }
 
     #[test]

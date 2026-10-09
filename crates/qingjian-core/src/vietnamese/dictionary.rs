@@ -21,6 +21,10 @@ pub(crate) struct Entry {
 
     pub compact_telex: String,
 
+    pub toneless_telex: String,
+
+    pub compact_toneless_telex: String,
+
     pub frequency: u32,
 }
 
@@ -47,13 +51,16 @@ impl VietnameseDictionary {
     }
 
     pub(crate) fn word_exact(&self, key: &str) -> impl Iterator<Item = &Entry> {
-        self.words.iter().filter(move |entry| entry.telex == key)
+        self.words
+            .iter()
+            .filter(move |entry| entry.telex == key || entry.toneless_telex == key)
     }
 
     pub(crate) fn word_prefix(&self, key: &str) -> impl Iterator<Item = &Entry> {
-        self.words
-            .iter()
-            .filter(move |entry| entry.telex.starts_with(key) && entry.telex != key)
+        self.words.iter().filter(move |entry| {
+            (entry.telex.starts_with(key) && entry.telex != key)
+                || (entry.toneless_telex.starts_with(key) && entry.toneless_telex != key)
+        })
     }
 
     pub(crate) fn phrases(&self) -> &[Entry] {
@@ -66,9 +73,14 @@ impl VietnameseDictionary {
         compact_key: &str,
     ) -> impl Iterator<Item = &Entry> {
         self.phrases.iter().filter(move |entry| {
-            (entry.telex.starts_with(key) || entry.compact_telex.starts_with(compact_key))
+            (entry.telex.starts_with(key)
+                || entry.compact_telex.starts_with(compact_key)
+                || entry.toneless_telex.starts_with(key)
+                || entry.compact_toneless_telex.starts_with(compact_key))
                 && entry.telex != key
                 && entry.compact_telex != compact_key
+                && entry.toneless_telex != key
+                && entry.compact_toneless_telex != compact_key
         })
     }
 
@@ -139,9 +151,12 @@ fn parse_entries(source: &str, phrase: bool) -> Vec<Entry> {
         if telex.is_empty() || text.trim().is_empty() {
             continue;
         }
+        let toneless = toneless_telex(&telex);
         let entry = Entry {
             text: text.trim().to_owned(),
             compact_telex: compact(&telex),
+            compact_toneless_telex: compact(&toneless),
+            toneless_telex: toneless,
             telex,
             frequency,
         };
@@ -174,4 +189,27 @@ fn normalize_telex(text: &str, phrase: bool) -> String {
     } else {
         lower
     }
+}
+
+fn toneless_telex(text: &str) -> String {
+    text.split(' ')
+        .map(toneless_word)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn toneless_word(text: &str) -> String {
+    let mut out = String::new();
+    let mut has_vowel = false;
+    for c in text.chars() {
+        let lower = c.to_ascii_lowercase();
+        if has_vowel && matches!(lower, 's' | 'f' | 'r' | 'x' | 'j') {
+            continue;
+        }
+        if matches!(lower, 'a' | 'e' | 'i' | 'o' | 'u' | 'y') {
+            has_vowel = true;
+        }
+        out.push(c);
+    }
+    out
 }
