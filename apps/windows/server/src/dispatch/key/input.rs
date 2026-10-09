@@ -295,7 +295,7 @@ impl Router {
         {
             return Effect::Changed(self.commit_index(index));
         }
-        if c.is_ascii_alphabetic() || (composing && c == '\'') {
+        if c.is_ascii_alphabetic() || (composing && matches!(c, ' ' | '\'')) {
             self.engine.push(c.to_ascii_lowercase());
             return Effect::Changed(None);
         }
@@ -304,9 +304,6 @@ impl Router {
             return Effect::Navigated;
         }
         if composing {
-            if c == ' ' {
-                return Effect::Changed(Some(self.commit_highlighted()));
-            }
             let committed = self.commit_highlighted();
             self.engine.note_passthrough(c);
             return with_prefix(Some(committed), Effect::Passthrough, c);

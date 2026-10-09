@@ -10,13 +10,17 @@ fn switch_key_target_can_enter_vietnamese_telex() {
 
     let (outcome, commit, frame) = press(&mut router, KeyEvent::new(0x20, Some(' '), ENGLISH));
     assert_eq!(outcome, KeyOutcome::Consumed);
-    assert_eq!(commit.as_deref(), Some("em"));
-    assert!(frame.candidates.items.is_empty());
+    assert_eq!(commit.as_deref(), None);
+    assert_eq!(preedit(&frame), "em ");
 
     let (_, _, frame) = type_english(&mut router, "trai");
     let texts = candidate_texts(&frame);
-    assert!(texts.contains(&"trai"), "候选：{texts:?}");
-    assert_eq!(texts.first().copied(), Some("trai"));
+    assert!(texts.contains(&"em trai"), "候选：{texts:?}");
+
+    let (outcome, commit, frame) = press(&mut router, KeyEvent::new(0x0D, None, ENGLISH));
+    assert_eq!(outcome, KeyOutcome::Consumed);
+    assert_eq!(commit.as_deref(), Some("em trai"));
+    assert!(frame.candidates.items.is_empty());
 }
 
 #[test]

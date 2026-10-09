@@ -159,6 +159,7 @@ impl QingjianInputController {
             || semicolon
             || (expression && qingjian_core::shortcut::is_expression_char(c))
             || (raw && c.is_ascii_graphic())
+            || (vietnamese && composing && c == ' ')
             || (unicode && (c.is_ascii_digit() || c == '+'))
             || hyphen
             || punctuation
