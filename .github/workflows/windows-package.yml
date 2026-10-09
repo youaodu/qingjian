@@ -46,6 +46,18 @@ jobs:
         shell: bash
         run: tools/release/data-fetch.sh
 
+      - name: Pack Vietnamese glossary
+        shell: bash
+        run: |
+          cargo run --release --locked -q -p qingjian-dict-convert -- \
+            pack glossary \
+            --language vi \
+            --input assets/glossary/glossary-vi.tsv \
+            --name "青简越南语释义表" \
+            --license "LLM-output" \
+            --attribution "LLM 生成，qingjian-gloss-gen" \
+            --source "assets/glossary/glossary-vi.tsv"
+
       - name: Install Inno Setup 7.1.0
         shell: pwsh
         run: |
